@@ -1,5 +1,7 @@
 import arcade
 import random
+from multiprocessing.dummy import Pool as ThreadPool
+
 
 # Constantes pour la taille de l'écran et la vitesse du sprite
 SCREEN_WIDTH = 800

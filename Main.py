@@ -27,7 +27,6 @@ class Task():
 
 class MyGame(arcade.Window):
     """ Main application class. """
-
     def __init__(self, width, height, title):
         """
         Initializer
@@ -42,16 +41,19 @@ class MyGame(arcade.Window):
         self.ant_obj_list : list[Ant] = []
         self.death_soon_ant : list[Ant] = []
         self.hungry_ant : list[Ant] = []
+        self.corpse_list : arcade.SpriteList = None
 
         # Set up the num of ant
-        self.ant_number = 20
+        self.ant_number = 0
+        self.ant_id = 0
+        self.gen = 1
 
         self.gather_ant = 0
 
         # Set up the number of iteration :
         self.iteration = 0
 
-        #sset up camera's sets :
+        #set up camera's sets :
         self.camera_scale = 1
         self.camera_moving = False
         self.camera_start_x = 0
@@ -60,7 +62,8 @@ class MyGame(arcade.Window):
         self.camera_pos_y = 0
 
         self.out_food = 0
-        self.nest_food = 0
+        self.nest_food = 20
+        self.enemy = False
 
         # Create the cameras. One for the GUI, one for the sprites.
         # We scroll the 'sprite world' but not the GUI.
@@ -75,25 +78,21 @@ class MyGame(arcade.Window):
         # Sprite lists
         self.consumable_sprite_list = arcade.SpriteList()
         self.ant_list = arcade.SpriteList()
+        self.corpse_list = arcade.SpriteList()
 
 
         # Set up the player
 
 
-        self.fourmiliere = arcade.Sprite("C:\\Users\\ywan\\Documents\\programmation\\Ant Sim\\fourmiliere.png", SPRITE_SCALING)
+        self.fourmiliere = arcade.Sprite( getcwd() + "\\fourmiliere.png", SPRITE_SCALING)
         self.fourmiliere.center_x = -10
         self.fourmiliere.center_y = -20
 
         for i in range(randint(2,4)):
             self.create_event("food")
 
-        for i in range(self.ant_number): 
-            ant = arcade.Sprite("C:\\Users\ywan\\Documents\\programmation\\Ant Sim\\fourmi_soldat.png", (SPRITE_SCALING/8))
-            ant.center_x = 0
-            ant.center_y = 0
-            self.ant_list.append(ant)
-            ant_obj = Ant(id = "<Ant{}>".format(i), sprite= ant)
-            self.ant_obj_list.append(ant_obj)
+        for i in range(START_ANT_NB): 
+            self.create_ant()
 
         #self.physics_engine = arcade.PhysicsEngineSimple(, [])
 
@@ -102,6 +101,17 @@ class MyGame(arcade.Window):
 
         self.set_update_rate(1/100)
 
+
+
+    def create_ant(self):
+        ant = arcade.Sprite( getcwd() + "\\fourmi_soldat.png", (SPRITE_SCALING/8))
+        ant.center_x = 0
+        ant.center_y = 0
+        self.ant_number += 1
+        self.ant_list.append(ant)
+        ant_obj = Ant(id = "<Ant{}>".format(self.ant_id), sprite= ant)
+        self.ant_obj_list.append(ant_obj)
+        self.ant_id += 1
 
 
     def create_task(self, **kwargs):
@@ -147,12 +157,11 @@ class MyGame(arcade.Window):
         match ant.task.type :
 
             case "food" :
-                self.out_food -= 1
                 self.nest_food += 1
                 self.gather_ant -= 1
             case "found_food" :
                 for it, task in self.all_task_list :
-                    if task.sprite == kwargs["sprite"] :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None :
                         ant.task = None
                         return
                 self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(10,15))
@@ -164,25 +173,30 @@ class MyGame(arcade.Window):
                     ant.dest_list = []
                     self.hungry_ant.append(ant)
                     return
+            case "found_corpse" :
+                for it, task in self.all_task_list :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None  :
+                        ant.task = None
+                        return
+                self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = 1, task_type = "corpse")
         ant.task = None
-
 
 
     def create_event(self, type : str):
         match type :
             case "food": 
-                food = arcade.Sprite("C:\\Users\ywan\\Documents\\programmation\\Ant Sim\\food.png", (SPRITE_SCALING/2))
+                food = arcade.Sprite( getcwd() + "\\food.png", (SPRITE_SCALING/2))
                 food.center_x, food.center_y = self.spawn_pos()
                 self.consumable_sprite_list.append(food)
             case "un":
-                task = arcade.Sprite("C:\\Users\ywan\\Documents\\programmation\\Ant Sim\\box.png", (SPRITE_SCALING/4))
+                task = arcade.Sprite( getcwd() + "\\box.png", (SPRITE_SCALING/4))
                 task.center_x = randint(-1300,1300)
                 task.center_y =  randint(-1300,1300)
                 self.consumable_sprite_list.append(task)
                 self.create_task(sprite = task, coords = (task.center_x, task.center_y), iteration = randint(10,15), task_type = "un")
 
 
-    def spawn_pos(self, mini = 400, maxi = 700):
+    def spawn_pos(self, mini = 400, maxi = 1100):
         distance = uniform(mini, maxi)
 
         # Générer un angle aléatoire entre 0 et 2 * pi
@@ -210,6 +224,7 @@ class MyGame(arcade.Window):
 
     def on_draw(self):
         """ Render the screen. """
+        t1 = time.time_ns()
 
         # This command has to happen before we start drawing
         self.clear()
@@ -222,6 +237,8 @@ class MyGame(arcade.Window):
         # Draw all the sprites.
         self.consumable_sprite_list.draw()
         self.ant_list.draw()
+        self.corpse_list.draw()
+
 
         for it, task in self.all_task_list :
             arcade.draw_text(task.print_it, task.sprite.center_x - 5, task.sprite.center_y - 5, arcade.color.BLACK, 15)
@@ -235,8 +252,25 @@ class MyGame(arcade.Window):
                                      self.width,
                                      40,
                                      arcade.color.ALMOND)
-        text = f"itération : {self.iteration}, nombre de fourmi : {self.ant_number}, out_food : {self.out_food}, nest_food : {self.nest_food}"
+        text = f"it : {self.iteration}, ant nb : {self.ant_number}, out_food : {self.out_food}, nest_food : {self.nest_food}\ngen : {self.gen}"
         arcade.draw_text(text, 10, 10, arcade.color.BLACK, 15)
+
+        arcade.draw_rectangle_filled(self.width-60,
+                                     self.height//2,
+                                     120,
+                                     self.height,
+                                     arcade.color.ALMOND)
+        arcade.draw_text("fatigue :", self.width-110, self.height-20, arcade.color.BLACK, 15)
+        y = 40
+        for ant in self.ant_obj_list :
+            arcade.draw_text(f"{ant.id}", self.width-110, self.height-y, arcade.color.BLACK, 10)
+            y += 15
+            arcade.draw_text(f"{round(ant.current_fatigue, 2)}", self.width-110, self.height-y, arcade.color.BLACK, 10)
+            y += 20
+
+        t2 = time.time_ns()
+
+        print((t2-t1)/1000000000)
 
 
 
@@ -268,17 +302,21 @@ class MyGame(arcade.Window):
                             ant.type = "dead"
 
                             #on fait les modifications de tâche
-                            if ant.task != None :
-                                if ant.task in self.current_task_list : ant.task.it += 1
-                                else : self.current_task_list.append(ant.task)
+                            if ant.task != None and ant.task.type not in ("eat", "found_food", "found_corpse") :
+                                if ant.task.parent in self.current_task_list and ant.task.status == "in_wait" : ant.task.parent.it += 1
+                                elif ant.task.parent not in self.current_task_list and ant.task.status == "in_wait" : 
+                                    self.current_task_list.append(ant.task.parent)
+                                    ant.task.parent.it += 1
 
                             #on change son sprite
-                            dead_ant = arcade.Sprite("C:\\Users\ywan\\Documents\\programmation\\Ant Sim\\fourmi_morte.png", (SPRITE_SCALING/8))
-                            dead_ant.center_x = ant.sprite.center_x
-                            dead_ant.center_y = ant.sprite.center_y
-                            dead_ant.angle = ant.sprite.angle
+                            if math.sqrt((ant.sprite.center_x) ** 2+ (ant.sprite.center_y) ** 2) > 100 :
+                                dead_ant = arcade.Sprite( getcwd() + "\\fourmi_morte.png", (SPRITE_SCALING/8))
+                                dead_ant.center_x = ant.sprite.center_x
+                                dead_ant.center_y = ant.sprite.center_y
+                                dead_ant.angle = ant.sprite.angle
                             ant.sprite.kill()
-                            ant.sprite = dead_ant
+                            del self.ant_obj_list[self.ant_obj_list.index(ant)]
+                            del ant
 
                             self.ant_number -= 1
                         else :
@@ -292,10 +330,17 @@ class MyGame(arcade.Window):
                 new_list = []
                 for ant in self.hungry_ant :
                     if self.nest_food > 0 :
+                        if ant.task != None and ant.task.type not in ("eat", "found_food", "found_corpse") :
+                            if ant.task.parent in self.current_task_list and ant.task.status == "in_wait" : ant.task.parent.it += 1
+                            elif ant.task.parent not in self.current_task_list and ant.task.status == "in_wait" : 
+                                self.current_task_list.append(ant.task.parent)
+                                ant.task.parent.it += 1
+                        
                         new_task = self.create_task2(sprite = None, task_type = "eat")
                         new_task.status = "completed"
                         ant.task = new_task
                         ant.dest_list = [new_task.final]
+
                     else : 
                         new_list.append(ant)
                 self.hungry_ant = new_list
@@ -305,7 +350,7 @@ class MyGame(arcade.Window):
             for task in self.all_task_list:
                 if task[1].it <= 0 :
                     task.sprite.kill()
-                elif task[0] < 6000 and task[1].it > 0 :
+                elif task[0] +6000 > self.iteration  and task[1].it > 0 :
                     sub_list.append(task)
             self.all_task_list = sub_list[::]
 
@@ -313,28 +358,33 @@ class MyGame(arcade.Window):
 
         life_check = False
         if self.iteration%100 == 0 :
-            print("current task :", self.current_task_list, "all task : ", self.all_task_list )
             life_check = True
-            if self.iteration%500 == 0:...
-                #self.create_event("un")
-            if self.iteration%700 == 0 and len(self.consumable_sprite_list) < 10:
+            if self.iteration%4000 == 0:
+                for i in range(randint(5,7)):
+                    self.create_ant()
+                self.gen += 1
+
+            if self.iteration%1000 == 0 and len(self.consumable_sprite_list) < 15:
                 self.create_event("food")
 
 
-        self.update_ant(life_check)
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        self.update_ant()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
             future_death = executor.submit(check_death)
         
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with ThreadPoolExecutor(max_workers=2) as executor:
             future_hunger = executor.submit(check_hunger)
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             future_task_spanlife = executor.submit(check_task_spanlife)
 
+
+
         dead_ant = future_death.result()
         if dead_ant : 
-            self.ant_list.append(dead_ant)
+            self.corpse_list.append(dead_ant)
         future_hunger.result()
         future_task_spanlife.result()
 
@@ -350,33 +400,28 @@ class MyGame(arcade.Window):
 
 
     
-    def update_ant(self, life_check = False):
+    def update_ant(self):
         task_ind = 0
         for ant in self.ant_obj_list :
             if ant.type == "dead" :
                 continue
             ant.lifespan -= 1
             ant.hunger -= 1
-            if ant.task == None and self.current_task_list != [] :
+            behave = self._ant_behave(ant)
+            if behave == "transport" : 
                 try : 
-                    task = self.current_task_list[task_ind]
-                    if task.type == "food" :
-                        if self.gather_ant < self.ant_number*3/4:
-                            ant.task = self.create_task2(sprite = task.sprite, coords = task.coords, final = task.final, iteration = task.it, task_type = task.type, parent = task)
-                            ant.dest_list = [ant.task.coords, ant.task.final]
-                            self.gather_ant +=1
-                    else :
-                        ant.task = self.create_task2(sprite = task.sprite, coords = task.coords, final = task.final, iteration = task.it, task_type = task.type, parent = task)
-                        ant.dest_list = [ant.task.coords, ant.task.final]
+                    task = self.current_task_list[0]
+                    ant.task = self.create_task2(sprite = task.sprite, coords = task.coords, final = task.final, iteration = task.it, task_type = task.type, parent = task)
+                    ant.dest_list = [ant.task.coords, ant.task.final]
                 except AttributeError :
                     print(self.current_task_list)
-                
-                if self.current_task_list[task_ind].it > 1 : self.current_task_list[task_ind].it -=1
-                else : self.current_task_list.pop(task_ind)
+                if ant.task != None : 
+                    if task.it > 1 : task.it -=1
+                    else : self.current_task_list.pop(self.current_task_list.index(task))
                 
                 task_ind = task_ind +1 if task_ind < len(self.current_task_list) -1 else 0
             
-            elif ant.task == None and self.current_task_list == [] and ant.dest_list == [] :
+            elif behave == "explo" and ant.dest_list == [] :
                 path = self.create_path(ant, 10)
                 ant.dest_list = path
             
@@ -384,21 +429,74 @@ class MyGame(arcade.Window):
             if ant.dest_list != [] :
                 coords = self._move(ant, coord = (ant.sprite.center_x, ant.sprite.center_y), dest = (ant.dest_list[0]))
                 ant.sprite.change_x, ant.sprite.change_y = coords[0], coords[1]
-                ant.sprite.update()
+                if self.iteration%2 == 0 :
+                    ant.sprite.update()
             
             
-            if life_check : 
+            if self.iteration%100 == 0 : 
                 if ant.lifespan <= 100 and ant not in self.death_soon_ant :
                     self.death_soon_ant.append(ant)
                 if ant.hunger < 1500 and ant not in self.hungry_ant :
-                    self.hungry_ant.append(ant)
+                    if not ant.task or ant.task.type != "eat":
+                        self.hungry_ant.append(ant)
                 if ant.hunger <= 0 :
                     self.kill_ant(ant)
 
 
+    def _ant_behave(self, ant : Ant):
+        if ant.hunger < 1500 :
+            return
+        if self.enemy :
+            pass # si l'ennemi est à portée d'elle, soit elle se bat, soit elle fuit (?), sinon elle continue sa vie
+        else : 
+            if ant.current_fatigue >= 100 or ant.status == "rest" :
+                if ant.dest_list != [] :
+                    ant.dest_memory = ant.dest_list[:]
+                    ant.dest_list = []
+                ant.status = "rest" #passer le status de la fourmi en repos + décrémenter sa fatigue
+                ant.change_fatigue(ant.current_fatigue -0.2) 
+                if ant.current_fatigue <= ant.def_fatigue : 
+                    if ant.task != None and ant.task.type == "food" :
+                        ant.status = "transport"
+                    else : ant.status = "none"
+                    ant.dest_list = ant.dest_memory[:]
+                    ant.current_fatigue = ant.def_fatigue
+            else : 
+                ant.change_fatigue(ant.current_fatigue+0.02)
+                if len(self.current_task_list)*ant.transport_will > 1 and ant.task == None :
+                    ant.status = "transport"
+                    return "transport" #là elle part faire du transport
+                elif ant.task == None and (len(self.current_task_list)*ant.transport_will <= 1):
+                    return "explo" #là elle fait de l'exploration
+        return "no_new"
 
 
-    def create_path(self,ant : Ant, num_points):
+
+    def kill_ant(self, ant : Ant):
+        ant.type = "dead"
+
+        #on fait les modifications de tâche
+        if ant.task != None and ant.task.type not in ("eat", "found_food", "found_corpse") :
+            if ant.task.parent in self.current_task_list and ant.task.status == "in_wait" : ant.task.parent.it += 1
+            elif ant.task.parent not in self.current_task_list and ant.task.status == "in_wait" : 
+                self.current_task_list.append(ant.task.parent)
+                ant.task.parent.it += 1
+
+        #on change son sprite
+        if math.sqrt((ant.sprite.center_x) ** 2+ (ant.sprite.center_y) ** 2) > 100 :
+            dead_ant = arcade.Sprite( getcwd() + "\\fourmi_morte.png", (SPRITE_SCALING/8))
+            dead_ant.center_x = ant.sprite.center_x
+            dead_ant.center_y = ant.sprite.center_y
+            dead_ant.angle = ant.sprite.angle
+        ant.sprite.kill()
+        del self.ant_obj_list[self.ant_obj_list.index(ant)]
+        del ant
+
+        self.ant_number -= 1
+        self.corpse_list.append(dead_ant)
+
+
+    def create_path(self,ant : Ant, num_points : int) -> list[tuple]:
         path = []
         current_x = ant.sprite.center_x
         current_y = ant.sprite.center_y
@@ -454,18 +552,23 @@ class MyGame(arcade.Window):
                 
                 if ant.task.sprite != None :
 
-                    if (int(start_x + change_x)== int(ant.task.sprite.center_x)) and (int(start_y + change_y) == int(ant.task.sprite.center_y)):
+                    if (int(start_x + change_x)== int(ant.task.sprite.center_x)) and (int(start_y + change_y) == int(ant.task.sprite.center_y)) and ant.task.type not in ("eat", "found_corpse", "found_food"):
+                            print(ant, ant.task, ant.task.parent)
+                            if ant.task.type == "food" :
+                                    self.out_food -= 1
                             if ant.task.parent.print_it > 1 : ant.task.parent.print_it -= 1
                             else : 
                                 ant.task.sprite.kill()
+                                ant.task.sprite = None
                                 for task in self.all_task_list :
                                     if task[1] == ant.task.parent :
                                         del self.all_task_list[self.all_task_list.index(task)]
+                                        ant.task.parent.status = "completed"
                                         break
                             ant.task.status = "completed"
                     
                 if final and ant.task.status == "completed" :
-                    self.close_task(ant, sprite = ant.task.sprite if ant.task.type == "found_food" else None)
+                    self.close_task(ant, sprite = ant.task.sprite if ant.task.type in ("found_food", "found_corpse") else None)
 
 
             if (int(start_x + change_x)== int(dest_x)) and (int(start_y + change_y) == int(dest_y)) and ant.dest_list != []:
@@ -477,22 +580,45 @@ class MyGame(arcade.Window):
 
         #bloc 3 
 
-        def check_surround():
+        def check_food():
             if ant.task == None : 
                 for sprite in self.consumable_sprite_list :
-                    distance = arcade.get_distance_between_sprites(ant.sprite, sprite)
-                    if distance < 150:
-                        ant.task = self.create_task2(sprite = sprite, task_type = "found_food")
-                        ant.task.status = "completed"
-                        ant.dest_list = [ant.task.final]
-                if ant.dest_list == [] :
-                    ant.dest_list = self.create_path(ant, 10)
+                    if abs(ant.sprite.center_x - sprite.center_x) < 50 and abs(ant.sprite.center_y - sprite.center_y) < 50 :
+                        distance = arcade.get_distance_between_sprites(ant.sprite, sprite)
+                        if distance < FOOD_DETECTION:
+                            ant.task = self.create_task2(sprite = sprite, task_type = "found_food")
+                            ant.task.status = "completed"
+                            ant.dest_list = [ant.task.final]
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future_surround = executor.submit(check_surround)
+
+        def check_corpse():
+            if ant.task == None : 
+                for corpse in self.corpse_list :
+                    if abs(ant.sprite.center_x - corpse.center_x) < 50 and abs(ant.sprite.center_y - corpse.center_y) < 50 :
+                        distance = arcade.get_distance_between_sprites(ant.sprite, corpse)
+                        if distance < CORPS_DETECTION:
+                            ant.task = self.create_task2(sprite = corpse, task_type = "found_corpse")
+                            ant.task.status = "completed"
+                            ant.dest_list = [ant.task.final]
+        
+        if ant.task == None :
+
+            if self.iteration%2 == 0 :
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    future_food = executor.submit(check_food)
+
+                    future_food.result()
+
+            if self.iteration%2 != 0 :
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    future_corpse = executor.submit(check_corpse)
+
+                    future_corpse.result()
+
+            if ant.dest_list == [] :
+                ant.dest_list = self.create_path(ant, 10)
         
         future_pos.result()
-        future_surround.result()
 
 
         return (change_x, change_y)

@@ -4,9 +4,11 @@ import arcade
 import math
 from AntClass import Ant
 from Main import Task
-import customtkinter as ct
 from typing import Union
 from  concurrent.futures import *
+from os import *
+import time
+
 
 
 #main file variables : 
@@ -30,3 +32,7 @@ PLAYER_MOVEMENT_SPEED = 15
 ZOOM_INCREMENT = 0.1
 MIN_ZOOM = 0.5
 MAX_ZOOM = 4
+
+FOOD_DETECTION = 150
+CORPS_DETECTION = 75
+START_ANT_NB = 20
