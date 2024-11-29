@@ -42,6 +42,7 @@ class MyGame(arcade.Window):
         self.death_soon_ant : list[Ant] = []
         self.hungry_ant : list[Ant] = []
         self.corpse_list : arcade.SpriteList = None
+        self.object_type : dict = {}
 
         # Set up the num of ant
         self.ant_number = 0
@@ -64,6 +65,9 @@ class MyGame(arcade.Window):
         self.out_food = 0
         self.nest_food = 20
         self.enemy = False
+        self.iron = 0
+        self.copper = 0
+        self.silicium = 0
 
         # Create the cameras. One for the GUI, one for the sprites.
         # We scroll the 'sprite world' but not the GUI.
@@ -84,7 +88,7 @@ class MyGame(arcade.Window):
         # Set up the player
 
 
-        self.fourmiliere = arcade.Sprite( getcwd() + "\\fourmiliere.png", SPRITE_SCALING)
+        self.fourmiliere = arcade.Sprite( getcwd() + "image\\fourmiliere.png", SPRITE_SCALING)
         self.fourmiliere.center_x = -10
         self.fourmiliere.center_y = -20
 
@@ -94,6 +98,8 @@ class MyGame(arcade.Window):
         for i in range(START_ANT_NB): 
             self.create_ant()
 
+        for _ in range(randint(4,6)):
+            self.create_event("ore")
         #self.physics_engine = arcade.PhysicsEngineSimple(, [])
 
         # Set the background color
@@ -104,7 +110,7 @@ class MyGame(arcade.Window):
 
 
     def create_ant(self):
-        ant = arcade.Sprite( getcwd() + "\\fourmi_soldat.png", (SPRITE_SCALING/8))
+        ant = arcade.Sprite( getcwd() + "image\\fourmi_soldat.png", (SPRITE_SCALING/8))
         ant.center_x = 0
         ant.center_y = 0
         self.ant_number += 1
@@ -160,7 +166,7 @@ class MyGame(arcade.Window):
                 self.nest_food += 1
                 self.gather_ant -= 1
             case "found_food" :
-                for it, task in self.all_task_list :
+                for _ , task in self.all_task_list :
                     if task.sprite == kwargs["sprite"] or task.sprite == None :
                         ant.task = None
                         return
@@ -179,21 +185,62 @@ class MyGame(arcade.Window):
                         ant.task = None
                         return
                 self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = 1, task_type = "corpse")
+            case "found_iron" :
+                for _ , task in self.all_task_list :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None  :
+                        ant.task = None
+                        return
+                self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(10,15), task_type = "iron")
+            case "iron" :
+                self.iron += 1
+            case "found_copper" :
+                for _ , task in self.all_task_list :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None  :
+                        ant.task = None
+                        return
+                self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(5,10), task_type = "copper") 
+            case "copper" :
+                self.copper += 1
+            case "found_silicium" :
+                for _ , task in self.all_task_list :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None  :
+                        ant.task = None
+                        return
+                self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(5,10), task_type = "silicium") 
+            case "silicium" :
+                self.silicium += 1
+              
         ant.task = None
 
 
     def create_event(self, type : str):
         match type :
             case "food": 
-                food = arcade.Sprite( getcwd() + "\\food.png", (SPRITE_SCALING/2))
+                food = arcade.Sprite( getcwd() + "image\\food.png", (SPRITE_SCALING/2))
                 food.center_x, food.center_y = self.spawn_pos()
                 self.consumable_sprite_list.append(food)
+                self.object_type[food] = "food"
             case "un":
-                task = arcade.Sprite( getcwd() + "\\box.png", (SPRITE_SCALING/4))
+                task = arcade.Sprite( getcwd() + "image\\box.png", (SPRITE_SCALING/4))
                 task.center_x = randint(-1300,1300)
                 task.center_y =  randint(-1300,1300)
                 self.consumable_sprite_list.append(task)
                 self.create_task(sprite = task, coords = (task.center_x, task.center_y), iteration = randint(10,15), task_type = "un")
+            case "ore" :
+                ore_type = randint(1,3)
+                match ore_type :
+
+                    case 1 :
+                        ore = arcade.Sprite( getcwd() + "image\\iron.png", (SPRITE_SCALING))
+                        self.object_type[ore] = "iron"
+                    case 2 :
+                        ore = arcade.Sprite( getcwd() + "image\\copper.png", (SPRITE_SCALING))
+                        self.object_type[ore] = "copper"
+                    case 3 :
+                        ore = arcade.Sprite( getcwd() + "image\\silicium.png", (SPRITE_SCALING))
+                        self.object_type[ore] = "silicium"
+                ore.center_x, ore.center_y = self.spawn_pos()
+                self.consumable_sprite_list.append(ore)
 
 
     def spawn_pos(self, mini = 400, maxi = 1100):
@@ -252,7 +299,8 @@ class MyGame(arcade.Window):
                                      self.width,
                                      40,
                                      arcade.color.ALMOND)
-        text = f"it : {self.iteration}, ant nb : {self.ant_number}, out_food : {self.out_food}, nest_food : {self.nest_food}\ngen : {self.gen}"
+        text = f"it : {self.iteration}, ant nb : {self.ant_number}, out_food : {self.out_food}, nest_food : {self.nest_food}\ngen : {self.gen}, " \
+            + f"iron : {self.iron}, copper : {self.copper}, silicium : {self.silicium}"
         arcade.draw_text(text, 10, 10, arcade.color.BLACK, 15)
 
         arcade.draw_rectangle_filled(self.width-60,
@@ -310,7 +358,7 @@ class MyGame(arcade.Window):
 
                             #on change son sprite
                             if math.sqrt((ant.sprite.center_x) ** 2+ (ant.sprite.center_y) ** 2) > 100 :
-                                dead_ant = arcade.Sprite( getcwd() + "\\fourmi_morte.png", (SPRITE_SCALING/8))
+                                dead_ant = arcade.Sprite( getcwd() + "image\\fourmi_morte.png", (SPRITE_SCALING/8))
                                 dead_ant.center_x = ant.sprite.center_x
                                 dead_ant.center_y = ant.sprite.center_y
                                 dead_ant.angle = ant.sprite.angle
@@ -364,7 +412,7 @@ class MyGame(arcade.Window):
                     self.create_ant()
                 self.gen += 1
 
-            if self.iteration%1000 == 0 and len(self.consumable_sprite_list) < 15:
+            if self.iteration%1000 == 0 and len(self.consumable_sprite_list) < 10:
                 self.create_event("food")
 
 
@@ -450,24 +498,37 @@ class MyGame(arcade.Window):
             pass # si l'ennemi est à portée d'elle, soit elle se bat, soit elle fuit (?), sinon elle continue sa vie
         else : 
             if ant.current_fatigue >= 100 or ant.status == "rest" :
+
+
                 if ant.dest_list != [] :
                     ant.dest_memory = ant.dest_list[:]
                     ant.dest_list = []
+
+
                 ant.status = "rest" #passer le status de la fourmi en repos + décrémenter sa fatigue
                 ant.change_fatigue(ant.current_fatigue -0.2) 
+
+
                 if ant.current_fatigue <= ant.def_fatigue : 
+
                     if ant.task != None and ant.task.type == "food" :
                         ant.status = "transport"
+
                     else : ant.status = "none"
+
                     ant.dest_list = ant.dest_memory[:]
                     ant.current_fatigue = ant.def_fatigue
             else : 
                 ant.change_fatigue(ant.current_fatigue+0.02)
+
                 if len(self.current_task_list)*ant.transport_will > 1 and ant.task == None :
+
                     ant.status = "transport"
                     return "transport" #là elle part faire du transport
+                
                 elif ant.task == None and (len(self.current_task_list)*ant.transport_will <= 1):
                     return "explo" #là elle fait de l'exploration
+                
         return "no_new"
 
 
@@ -484,16 +545,16 @@ class MyGame(arcade.Window):
 
         #on change son sprite
         if math.sqrt((ant.sprite.center_x) ** 2+ (ant.sprite.center_y) ** 2) > 100 :
-            dead_ant = arcade.Sprite( getcwd() + "\\fourmi_morte.png", (SPRITE_SCALING/8))
+            dead_ant = arcade.Sprite( getcwd() + "image\\fourmi_morte.png", (SPRITE_SCALING/8))
             dead_ant.center_x = ant.sprite.center_x
             dead_ant.center_y = ant.sprite.center_y
             dead_ant.angle = ant.sprite.angle
+            self.corpse_list.append(dead_ant)
         ant.sprite.kill()
         del self.ant_obj_list[self.ant_obj_list.index(ant)]
         del ant
 
         self.ant_number -= 1
-        self.corpse_list.append(dead_ant)
 
 
     def create_path(self,ant : Ant, num_points : int) -> list[tuple]:
@@ -568,7 +629,7 @@ class MyGame(arcade.Window):
                             ant.task.status = "completed"
                     
                 if final and ant.task.status == "completed" :
-                    self.close_task(ant, sprite = ant.task.sprite if ant.task.type in ("found_food", "found_corpse") else None)
+                    self.close_task(ant, sprite = ant.task.sprite if ant.task.type in ("found_food", "found_corpse", "found_iron", "found_copper", "found_silicium") else None)
 
 
             if (int(start_x + change_x)== int(dest_x)) and (int(start_y + change_y) == int(dest_y)) and ant.dest_list != []:
@@ -580,13 +641,13 @@ class MyGame(arcade.Window):
 
         #bloc 3 
 
-        def check_food():
+        def check_object():
             if ant.task == None : 
                 for sprite in self.consumable_sprite_list :
-                    if abs(ant.sprite.center_x - sprite.center_x) < 50 and abs(ant.sprite.center_y - sprite.center_y) < 50 :
+                    if abs(ant.sprite.center_x - sprite.center_x) < OBJECT_DETECTION and abs(ant.sprite.center_y - sprite.center_y) < OBJECT_DETECTION :
                         distance = arcade.get_distance_between_sprites(ant.sprite, sprite)
-                        if distance < FOOD_DETECTION:
-                            ant.task = self.create_task2(sprite = sprite, task_type = "found_food")
+                        if distance < OBJECT_DETECTION:
+                            ant.task = self.create_task2(sprite = sprite, task_type = "found_" + self.object_type[sprite])
                             ant.task.status = "completed"
                             ant.dest_list = [ant.task.final]
 
@@ -594,7 +655,7 @@ class MyGame(arcade.Window):
         def check_corpse():
             if ant.task == None : 
                 for corpse in self.corpse_list :
-                    if abs(ant.sprite.center_x - corpse.center_x) < 50 and abs(ant.sprite.center_y - corpse.center_y) < 50 :
+                    if abs(ant.sprite.center_x - corpse.center_x) < CORPS_DETECTION and abs(ant.sprite.center_y - corpse.center_y) < CORPS_DETECTION :
                         distance = arcade.get_distance_between_sprites(ant.sprite, corpse)
                         if distance < CORPS_DETECTION:
                             ant.task = self.create_task2(sprite = corpse, task_type = "found_corpse")
@@ -605,7 +666,7 @@ class MyGame(arcade.Window):
 
             if self.iteration%2 == 0 :
                 with ThreadPoolExecutor(max_workers=2) as executor:
-                    future_food = executor.submit(check_food)
+                    future_food = executor.submit(check_object)
 
                     future_food.result()
 

@@ -8,6 +8,7 @@ from typing import Union
 from  concurrent.futures import *
 from os import *
 import time
+from engineering import *
 
 
 
@@ -19,20 +20,29 @@ DEFAULT_SCREEN_WIDTH = 800
 DEFAULT_SCREEN_HEIGHT = 600
 SCREEN_TITLE = "Ant Sim"
 
-# How many pixels to keep as a minimum margin between the character
-# and the edge of the screen.
+
 VIEWPORT_MARGIN = 220
 
-# How fast the camera pans to the player. 1.0 is instant.
 CAMERA_SPEED = 0.1
 
-# How fast the character moves
 PLAYER_MOVEMENT_SPEED = 15
 
 ZOOM_INCREMENT = 0.1
 MIN_ZOOM = 0.5
 MAX_ZOOM = 4
 
-FOOD_DETECTION = 150
+OBJECT_DETECTION = 150
 CORPS_DETECTION = 75
-START_ANT_NB = 20
+START_ANT_NB = 15
+
+
+#engineer file :
+
+DEFENSE_COEF = 1
+STORAGE_COEF = 0.7
+RESEARCH_COEF = 0.7
+DRONE_BUILD_COEF = 0.7
+MIN_POPU = 15
+MAX_POPU = 25
+
+SEUIL_ACTIVATION = 0.5
