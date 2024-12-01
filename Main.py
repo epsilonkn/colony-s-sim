@@ -34,14 +34,16 @@ class MyGame(arcade.Window):
         super().__init__(width, height, title, resizable=True)
 
         #lists
-        self.consumable_sprite_list = None
+        self.consumable_sprite_list : arcade.SpriteList = None
+        self.ore_sprite_list : arcade.SpriteList = None
         self.consumable_list = []
         self.all_task_list : list[int, Task] = []
         self.current_task_list : list[Task] = []
         self.ant_obj_list : list[Ant] = []
         self.death_soon_ant : list[Ant] = []
         self.hungry_ant : list[Ant] = []
-        self.corpse_list : arcade.SpriteList = None
+        self.corpse_sprite_list : arcade.SpriteList = None
+        self.corpse_list = []
         self.object_type : dict = {}
 
         # Set up the num of ant
@@ -63,11 +65,8 @@ class MyGame(arcade.Window):
         self.camera_pos_y = 0
 
         self.out_food = 0
-        self.nest_food = 20
         self.enemy = False
-        self.iron = 0
-        self.copper = 0
-        self.silicium = 0
+
 
         # Create the cameras. One for the GUI, one for the sprites.
         # We scroll the 'sprite world' but not the GUI.
@@ -81,16 +80,33 @@ class MyGame(arcade.Window):
 
         # Sprite lists
         self.consumable_sprite_list = arcade.SpriteList()
+        self.ore_sprite_list = arcade.SpriteList()
         self.ant_list = arcade.SpriteList()
-        self.corpse_list = arcade.SpriteList()
+        self.corpse_sprite_list = arcade.SpriteList()
 
 
         # Set up the player
 
 
-        self.fourmiliere = arcade.Sprite( getcwd() + "image\\fourmiliere.png", SPRITE_SCALING)
-        self.fourmiliere.center_x = -10
-        self.fourmiliere.center_y = -20
+        self.fourmiliere = arcade.Sprite( getcwd() + "\\image\\engineer.png", SPRITE_SCALING*4)
+        self.fourmiliere.center_x = 0
+        self.fourmiliere.center_y = 0
+
+
+        self.warehouse = Warehouse(WAREHOUSE_CAPACITY, START_IRON, START_COPPER, START_SILICIUM)
+        self.warehouse.add(START_IRON + START_COPPER + START_SILICIUM)
+
+        self.warehouseSprite = arcade.Sprite( getcwd() + "\\image\\warehouse.png", SPRITE_SCALING*2)
+        self.warehouseSprite.center_x = self.fourmiliere.center_x - 35
+        self.warehouseSprite.center_y  = self.fourmiliere.center_y - 75
+
+
+        self.cellar = Cellar(CELLAR_CAPACITY)
+        self.cellar.add(START_FOOD)
+
+        self.cellarSprite = arcade.Sprite( getcwd() + "\\image\\cellar.png", SPRITE_SCALING*2)
+        self.cellarSprite.center_x = self.fourmiliere.center_x + 25
+        self.cellarSprite.center_y  = self.fourmiliere.center_y - 75
 
         for i in range(randint(2,4)):
             self.create_event("food")
@@ -98,24 +114,23 @@ class MyGame(arcade.Window):
         for i in range(START_ANT_NB): 
             self.create_ant()
 
-        for _ in range(randint(4,6)):
+        for _ in range(randint(6,10)):
             self.create_event("ore")
-        #self.physics_engine = arcade.PhysicsEngineSimple(, [])
 
         # Set the background color
         arcade.set_background_color(arcade.color.AMAZON)
 
-        self.set_update_rate(1/100)
+        self.set_update_rate(1/UPDATE_RATE)
 
 
 
     def create_ant(self):
-        ant = arcade.Sprite( getcwd() + "image\\fourmi_soldat.png", (SPRITE_SCALING/8))
+        ant = arcade.Sprite( getcwd() + "\\image\\fourmi_soldat.png", (SPRITE_SCALING/8))
         ant.center_x = 0
         ant.center_y = 0
         self.ant_number += 1
         self.ant_list.append(ant)
-        ant_obj = Ant(id = "<Ant{}>".format(self.ant_id), sprite= ant)
+        ant_obj = Ant(id = "<Ant{}>".format(self.ant_id), sprite= ant, vit_coef=100/UPDATE_RATE)
         self.ant_obj_list.append(ant_obj)
         self.ant_id += 1
 
@@ -163,52 +178,73 @@ class MyGame(arcade.Window):
         match ant.task.type :
 
             case "food" :
-                self.nest_food += 1
-                self.gather_ant -= 1
+                if (not self.cellar.full()):
+                    self.cellar.add(1)
+                    self.gather_ant -= 1
+
             case "found_food" :
                 for _ , task in self.all_task_list :
-                    if task.sprite == kwargs["sprite"] or task.sprite == None :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None or self.cellar.full() :
                         ant.task = None
                         return
                 self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(10,15))
+
+
             case "eat" :
-                if self.nest_food > 0 :
-                    self.nest_food -= 1
+                if self.cellar.get_stock() > 0 :
+                    self.cellar.take(1)
                     ant.fill_hunger()
                 else : 
                     ant.dest_list = []
                     self.hungry_ant.append(ant)
                     return
+                
+
             case "found_corpse" :
                 for it, task in self.all_task_list :
                     if task.sprite == kwargs["sprite"] or task.sprite == None  :
                         ant.task = None
                         return
                 self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = 1, task_type = "corpse")
+
+
             case "found_iron" :
                 for _ , task in self.all_task_list :
-                    if task.sprite == kwargs["sprite"] or task.sprite == None  :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None  or self.warehouse.full() :
                         ant.task = None
                         return
                 self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(10,15), task_type = "iron")
+
             case "iron" :
-                self.iron += 1
+                if not self.warehouse.full() :
+                    self.warehouse.iron += 1
+                    self.warehouse.add(1)
+
+
             case "found_copper" :
                 for _ , task in self.all_task_list :
-                    if task.sprite == kwargs["sprite"] or task.sprite == None  :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None or self.warehouse.full() :
                         ant.task = None
                         return
                 self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(5,10), task_type = "copper") 
+
             case "copper" :
-                self.copper += 1
+                if not self.warehouse.full() :
+                    self.warehouse.copper += 1
+                    self.warehouse.add(1)
+
+
             case "found_silicium" :
                 for _ , task in self.all_task_list :
-                    if task.sprite == kwargs["sprite"] or task.sprite == None  :
+                    if task.sprite == kwargs["sprite"] or task.sprite == None or self.warehouse.full() :
                         ant.task = None
                         return
+                    
                 self.create_task(sprite = kwargs["sprite"], coords = (kwargs["sprite"].center_x, kwargs["sprite"].center_y), iteration = randint(5,10), task_type = "silicium") 
             case "silicium" :
-                self.silicium += 1
+                if not self.warehouse.full() :
+                    self.warehouse.silicium += 1
+                    self.warehouse.add(1)
               
         ant.task = None
 
@@ -216,14 +252,14 @@ class MyGame(arcade.Window):
     def create_event(self, type : str):
         match type :
             case "food": 
-                food = arcade.Sprite( getcwd() + "image\\food.png", (SPRITE_SCALING/2))
+                food = arcade.Sprite( getcwd() + "\\image\\food.png", (SPRITE_SCALING/2))
                 food.center_x, food.center_y = self.spawn_pos()
                 self.consumable_sprite_list.append(food)
                 self.object_type[food] = "food"
             case "un":
-                task = arcade.Sprite( getcwd() + "image\\box.png", (SPRITE_SCALING/4))
-                task.center_x = randint(-1300,1300)
-                task.center_y =  randint(-1300,1300)
+                task = arcade.Sprite( getcwd() + "\\image\\box.png", (SPRITE_SCALING/4))
+                task.center_x = randint(-1000,1000)
+                task.center_y =  randint(-1000,1000)
                 self.consumable_sprite_list.append(task)
                 self.create_task(sprite = task, coords = (task.center_x, task.center_y), iteration = randint(10,15), task_type = "un")
             case "ore" :
@@ -231,19 +267,19 @@ class MyGame(arcade.Window):
                 match ore_type :
 
                     case 1 :
-                        ore = arcade.Sprite( getcwd() + "image\\iron.png", (SPRITE_SCALING))
+                        ore = arcade.Sprite( getcwd() + "\\image\\iron.png", (SPRITE_SCALING*2))
                         self.object_type[ore] = "iron"
                     case 2 :
-                        ore = arcade.Sprite( getcwd() + "image\\copper.png", (SPRITE_SCALING))
+                        ore = arcade.Sprite( getcwd() + "\\image\\copper.png", (SPRITE_SCALING*2))
                         self.object_type[ore] = "copper"
                     case 3 :
-                        ore = arcade.Sprite( getcwd() + "image\\silicium.png", (SPRITE_SCALING))
+                        ore = arcade.Sprite( getcwd() + "\\image\\silicium.png", (SPRITE_SCALING*2))
                         self.object_type[ore] = "silicium"
                 ore.center_x, ore.center_y = self.spawn_pos()
-                self.consumable_sprite_list.append(ore)
+                self.ore_sprite_list.append(ore)
 
 
-    def spawn_pos(self, mini = 400, maxi = 1100):
+    def spawn_pos(self, mini = 400, maxi = 900):
         distance = uniform(mini, maxi)
 
         # Générer un angle aléatoire entre 0 et 2 * pi
@@ -280,11 +316,16 @@ class MyGame(arcade.Window):
         self.camera_sprites.use()
 
         self.fourmiliere.draw()
+        self.warehouseSprite.draw()
+        arcade.draw_text(f"niveau {self.warehouse.level}", self.warehouseSprite.center_x - 10, self.warehouseSprite.center_y - 40, arcade.color.BLACK, 7)
+        self.cellarSprite.draw()
+        arcade.draw_text(f"niveau {self.cellar.level}", self.cellarSprite.center_x - 10, self.cellarSprite.center_y - 40, arcade.color.BLACK, 7)
 
         # Draw all the sprites.
         self.consumable_sprite_list.draw()
+        self.ore_sprite_list.draw()
         self.ant_list.draw()
-        self.corpse_list.draw()
+        self.corpse_sprite_list.draw()
 
 
         for it, task in self.all_task_list :
@@ -299,8 +340,8 @@ class MyGame(arcade.Window):
                                      self.width,
                                      40,
                                      arcade.color.ALMOND)
-        text = f"it : {self.iteration}, ant nb : {self.ant_number}, out_food : {self.out_food}, nest_food : {self.nest_food}\ngen : {self.gen}, " \
-            + f"iron : {self.iron}, copper : {self.copper}, silicium : {self.silicium}"
+        text = f"it : {self.iteration}, ant nb : {self.ant_number}, out_food : {self.out_food}, nest_food : {self.cellar.get_stock()}\ngen : {self.gen}, " \
+            + f"iron : {self.warehouse.iron}, copper : {self.warehouse.copper}, silicium : {self.warehouse.silicium}"
         arcade.draw_text(text, 10, 10, arcade.color.BLACK, 15)
 
         arcade.draw_rectangle_filled(self.width-60,
@@ -317,8 +358,6 @@ class MyGame(arcade.Window):
             y += 20
 
         t2 = time.time_ns()
-
-        print((t2-t1)/1000000000)
 
 
 
@@ -358,7 +397,7 @@ class MyGame(arcade.Window):
 
                             #on change son sprite
                             if math.sqrt((ant.sprite.center_x) ** 2+ (ant.sprite.center_y) ** 2) > 100 :
-                                dead_ant = arcade.Sprite( getcwd() + "image\\fourmi_morte.png", (SPRITE_SCALING/8))
+                                dead_ant = arcade.Sprite( getcwd() + "\\image\\fourmi_morte.png", (SPRITE_SCALING/10))
                                 dead_ant.center_x = ant.sprite.center_x
                                 dead_ant.center_y = ant.sprite.center_y
                                 dead_ant.angle = ant.sprite.angle
@@ -377,7 +416,7 @@ class MyGame(arcade.Window):
             if self.hungry_ant != [] :
                 new_list = []
                 for ant in self.hungry_ant :
-                    if self.nest_food > 0 :
+                    if self.cellar.get_stock() > 0 :
                         if ant.task != None and ant.task.type not in ("eat", "found_food", "found_corpse") :
                             if ant.task.parent in self.current_task_list and ant.task.status == "in_wait" : ant.task.parent.it += 1
                             elif ant.task.parent not in self.current_task_list and ant.task.status == "in_wait" : 
@@ -404,16 +443,20 @@ class MyGame(arcade.Window):
 
         self.iteration +=1
 
-        life_check = False
         if self.iteration%100 == 0 :
-            life_check = True
-            if self.iteration%4000 == 0:
-                for i in range(randint(5,7)):
-                    self.create_ant()
-                self.gen += 1
+            self.engineerAction()
+            if self.iteration%2000 == 0 and len(self.ore_sprite_list) < 10 :
+                self.create_event("ore")
 
             if self.iteration%1000 == 0 and len(self.consumable_sprite_list) < 10:
                 self.create_event("food")
+            if self.iteration%1000 == 0 :
+                for ants in self.corpse_list :
+                    if ants[1] + 1000 < self.iteration :
+                        ants[0].kill()
+                        del self.corpse_list[self.corpse_list.index(ants)]
+
+            
 
 
 
@@ -432,9 +475,41 @@ class MyGame(arcade.Window):
 
         dead_ant = future_death.result()
         if dead_ant : 
-            self.corpse_list.append(dead_ant)
+            self.corpse_sprite_list.append(dead_ant)
+            self.corpse_list.append((dead_ant, self.iteration))
         future_hunger.result()
         future_task_spanlife.result()
+
+
+
+    def engineerAction(self):
+        iron_c, copper_c, silice_c = 0,0,0
+        action = engineer.action(0,self.ant_number,self.iteration, self.gen, self.cellar.fill, self.cellar.capacity, self.warehouse.fill, self.warehouse.capacity)
+        print(action)
+        match action :
+
+            case "build_ant" :
+                if self.warehouse.iron >= build_drone.iron and self.warehouse.copper >= build_drone.copper and self.warehouse.silicium >= build_drone.silicium :
+                    self.create_ant()
+                    iron_c, copper_c, silice_c = build_drone.iron, build_drone.copper, build_drone.silicium
+                
+
+            case "upgrade_warehouse" :
+                if self.warehouse.iron >= Warehouse.iron and self.warehouse.copper >= Warehouse.copper and self.warehouse.silicium >= Warehouse.silicium :
+                    self.warehouse.level += 1
+                    self.warehouse.capacity = WAREHOUSE_CAPACITY*self.warehouse.level
+                    iron_c, copper_c, silice_c = Warehouse.iron, Warehouse.copper, Warehouse.silicium
+                
+
+            case "upgrade_cellar" :
+                if self.warehouse.iron >= Cellar.iron and self.warehouse.copper >= Cellar.copper and self.warehouse.silicium >= Cellar.silicium :
+                    self.cellar.level += 1
+                    self.cellar.capacity = CELLAR_CAPACITY*self.cellar.level
+                    iron_c, copper_c, silice_c = Cellar.iron, Cellar.copper, Cellar.silicium
+
+        self.warehouse.iron -= iron_c
+        self.warehouse.copper -= copper_c
+        self.warehouse.silicium -= silice_c
 
 
 
@@ -491,6 +566,7 @@ class MyGame(arcade.Window):
                     self.kill_ant(ant)
 
 
+
     def _ant_behave(self, ant : Ant):
         if ant.hunger < 1500 :
             return
@@ -545,16 +621,18 @@ class MyGame(arcade.Window):
 
         #on change son sprite
         if math.sqrt((ant.sprite.center_x) ** 2+ (ant.sprite.center_y) ** 2) > 100 :
-            dead_ant = arcade.Sprite( getcwd() + "image\\fourmi_morte.png", (SPRITE_SCALING/8))
+            dead_ant = arcade.Sprite( getcwd() + "\\image\\fourmi_morte.png", (SPRITE_SCALING/10))
             dead_ant.center_x = ant.sprite.center_x
             dead_ant.center_y = ant.sprite.center_y
             dead_ant.angle = ant.sprite.angle
-            self.corpse_list.append(dead_ant)
+            self.corpse_sprite_list.append(dead_ant)
+            self.corpse_list.append((dead_ant, self.iteration))
         ant.sprite.kill()
         del self.ant_obj_list[self.ant_obj_list.index(ant)]
         del ant
 
         self.ant_number -= 1
+
 
 
     def create_path(self,ant : Ant, num_points : int) -> list[tuple]:
@@ -650,11 +728,18 @@ class MyGame(arcade.Window):
                             ant.task = self.create_task2(sprite = sprite, task_type = "found_" + self.object_type[sprite])
                             ant.task.status = "completed"
                             ant.dest_list = [ant.task.final]
+                for sprite in self.ore_sprite_list:
+                    if abs(ant.sprite.center_x - sprite.center_x) < OBJECT_DETECTION and abs(ant.sprite.center_y - sprite.center_y) < OBJECT_DETECTION :
+                        distance = arcade.get_distance_between_sprites(ant.sprite, sprite)
+                        if distance < OBJECT_DETECTION:
+                            ant.task = self.create_task2(sprite = sprite, task_type = "found_" + self.object_type[sprite])
+                            ant.task.status = "completed"
+                            ant.dest_list = [ant.task.final]
 
 
         def check_corpse():
             if ant.task == None : 
-                for corpse in self.corpse_list :
+                for corpse in self.corpse_sprite_list :
                     if abs(ant.sprite.center_x - corpse.center_x) < CORPS_DETECTION and abs(ant.sprite.center_y - corpse.center_y) < CORPS_DETECTION :
                         distance = arcade.get_distance_between_sprites(ant.sprite, corpse)
                         if distance < CORPS_DETECTION:

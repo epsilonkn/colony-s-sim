@@ -6,7 +6,8 @@ class Ant():
 
     def __init__(self, 
                  id : str = None, 
-                 sprite : object = None
+                 sprite : object = None,
+                 vit_coef : float = 1
                  ) -> None:
         """
         init de chaque fourmi
@@ -18,7 +19,7 @@ class Ant():
         """
         self.life : int = randint(40, 60)
         self.lifespan : int = randint(15000, 20000)
-        self.vit : int = 2
+        self.vit : int = 2*vit_coef
         self.dmg : tuple[int] = (4,8)
         self.id : str = id
         self.type : str = type
