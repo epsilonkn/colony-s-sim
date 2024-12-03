@@ -1,4 +1,5 @@
 from header import *
+from fimport import *
 
 
 
@@ -43,6 +44,7 @@ class MyGame(arcade.Window):
         self.death_soon_ant : list[Ant] = []
         self.hungry_ant : list[Ant] = []
         self.corpse_sprite_list : arcade.SpriteList = None
+        self.enemy_list : arcade.SpriteList = None
         self.corpse_list = []
         self.object_type : dict = {}
 
@@ -65,7 +67,7 @@ class MyGame(arcade.Window):
         self.camera_pos_y = 0
 
         self.out_food = 0
-        self.enemy = False
+        self.enemy = None
 
 
         # Create the cameras. One for the GUI, one for the sprites.
@@ -83,6 +85,7 @@ class MyGame(arcade.Window):
         self.ore_sprite_list = arcade.SpriteList()
         self.ant_list = arcade.SpriteList()
         self.corpse_sprite_list = arcade.SpriteList()
+        self.enemy_list = arcade.SpriteList()
 
 
         # Set up the player
@@ -130,7 +133,7 @@ class MyGame(arcade.Window):
         ant.center_y = 0
         self.ant_number += 1
         self.ant_list.append(ant)
-        ant_obj = Ant(id = "<Ant{}>".format(self.ant_id), sprite= ant, vit_coef=100/UPDATE_RATE)
+        ant_obj = Ant(id = "<Ant{}>".format(self.ant_id), sprite= ant, coef=100/UPDATE_RATE)
         self.ant_obj_list.append(ant_obj)
         self.ant_id += 1
 
@@ -326,6 +329,7 @@ class MyGame(arcade.Window):
         self.ore_sprite_list.draw()
         self.ant_list.draw()
         self.corpse_sprite_list.draw()
+        self.enemy_list.draw()
 
 
         for it, task in self.all_task_list :
@@ -349,12 +353,12 @@ class MyGame(arcade.Window):
                                      120,
                                      self.height,
                                      arcade.color.ALMOND)
-        arcade.draw_text("fatigue :", self.width-110, self.height-20, arcade.color.BLACK, 15)
+        arcade.draw_text("pv :", self.width-110, self.height-20, arcade.color.BLACK, 15)
         y = 40
         for ant in self.ant_obj_list :
             arcade.draw_text(f"{ant.id}", self.width-110, self.height-y, arcade.color.BLACK, 10)
             y += 15
-            arcade.draw_text(f"{round(ant.current_fatigue, 2)}", self.width-110, self.height-y, arcade.color.BLACK, 10)
+            arcade.draw_text(f"{round(ant.life, 2)}", self.width-110, self.height-y, arcade.color.BLACK, 10)
             y += 20
 
         t2 = time.time_ns()
@@ -456,8 +460,27 @@ class MyGame(arcade.Window):
                         ants[0].kill()
                         del self.corpse_list[self.corpse_list.index(ants)]
 
-            
+            if self.enemy and self.iteration%UPDATE_RATE == 0 :
+                l_ant = Combat.defineProrityTarget(self.enemy, self.ant_obj_list)
+                if l_ant != []:
+                    self.combat(l_ant)
 
+            if self.iteration%1000 == 0 and not self.enemy :
+                self.enemy = Enemy(100, 10, 3, "spider", arcade.Sprite("image/enemy.png", scale=(SPRITE_SCALING)))
+                self.enemy_list.append(self.enemy.sprite)
+                pos = self.spawn_pos(900,1100)
+                self.enemy.sprite.center_x = pos[0]
+                self.enemy.sprite.center_y = pos[1]
+
+        def manage_enemy():
+            l_ant = Combat.defineProrityTarget(self.enemy, self.ant_obj_list)
+            if l_ant != []:
+                dest = (l_ant[0][0].sprite.center_x, l_ant[0][0].sprite.center_y)
+            else :
+                dest = (self.fourmiliere.center_x, self.fourmiliere.center_y)
+            self.enemy.sprite.change_x, self.enemy.sprite.change_y = self._moveEnemy(dest)
+            if self.iteration%2 == 0 :
+                    self.enemy.sprite.update()
 
 
         self.update_ant()
@@ -471,6 +494,10 @@ class MyGame(arcade.Window):
         with ThreadPoolExecutor(max_workers=1) as executor:
             future_task_spanlife = executor.submit(check_task_spanlife)
 
+        if self.enemy :
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future_enemy = executor.submit(manage_enemy)
+
 
 
         dead_ant = future_death.result()
@@ -479,6 +506,8 @@ class MyGame(arcade.Window):
             self.corpse_list.append((dead_ant, self.iteration))
         future_hunger.result()
         future_task_spanlife.result()
+        if self.enemy :
+            future_enemy.result()
 
 
 
@@ -512,6 +541,44 @@ class MyGame(arcade.Window):
         self.warehouse.silicium -= silice_c
 
 
+    def combat(self, l_ant : list[Ant]):
+        for ant, _ in l_ant :
+            if Combat.fight(ant, self.enemy) :
+                self.enemy.sprite.kill()
+                del self.enemy
+                self.enemy = False
+                break
+        if self.enemy and Combat.fight(self.enemy, l_ant[0][0]) :
+            self.kill_ant(l_ant[0][0])
+
+
+    def _moveEnemy(self, dest : tuple[float, float]):
+
+        # Where are we going
+        dest_x = dest[0]
+        dest_y = dest[1]
+
+        # X and Y diff between the two
+        x_diff = dest_x - self.enemy.sprite.center_x
+        y_diff = dest_y - self.enemy.sprite.center_y
+
+        # Calculate angle to get there
+        angle = math.atan2(y_diff, x_diff)
+        self.enemy.sprite.angle = -(90- angle*180/math.pi)
+
+        # How far are we?
+        distance = math.sqrt((self.enemy.sprite.center_x - dest_x) ** 2 + (self.enemy.sprite.center_y - dest_y) ** 2)
+
+        # How fast should we go? If we are close to our destination,
+        # lower our speed so we don't overshoot.
+        speed = min(self.enemy.vit, distance)
+
+        # Calculate vector to travel
+        change_x = math.cos(angle) * speed
+        change_y = math.sin(angle) * speed
+
+        return (change_x, change_y)
+
 
     def on_resize(self, width, height):
         """
@@ -543,6 +610,10 @@ class MyGame(arcade.Window):
                     else : self.current_task_list.pop(self.current_task_list.index(task))
                 
                 task_ind = task_ind +1 if task_ind < len(self.current_task_list) -1 else 0
+
+            elif behave == "fight" :
+                ant.dest_list = [[self.enemy.sprite.center_x, self.enemy.sprite.center_y]]
+
             
             elif behave == "explo" and ant.dest_list == [] :
                 path = self.create_path(ant, 10)
@@ -550,7 +621,7 @@ class MyGame(arcade.Window):
             
             
             if ant.dest_list != [] :
-                coords = self._move(ant, coord = (ant.sprite.center_x, ant.sprite.center_y), dest = (ant.dest_list[0]))
+                coords = self._moveAnt(ant, coord = (ant.sprite.center_x, ant.sprite.center_y), dest = (ant.dest_list[0]))
                 ant.sprite.change_x, ant.sprite.change_y = coords[0], coords[1]
                 if self.iteration%2 == 0 :
                     ant.sprite.update()
@@ -568,10 +639,14 @@ class MyGame(arcade.Window):
 
 
     def _ant_behave(self, ant : Ant):
+        if self.enemy and ant.status != "fight" :
+            dist = math.sqrt((ant.sprite.center_x - self.enemy.sprite.center_x)**2 + (ant.sprite.center_y - self.enemy.sprite.center_y)**2)
+            if dist <= FIGHT_RANGE :
+                return "fight"
+        elif not self.enemy and ant.status == 'fight' :
+            ant.status = None
         if ant.hunger < 1500 :
             return
-        if self.enemy :
-            pass # si l'ennemi est à portée d'elle, soit elle se bat, soit elle fuit (?), sinon elle continue sa vie
         else : 
             if ant.current_fatigue >= 100 or ant.status == "rest" :
 
@@ -651,7 +726,7 @@ class MyGame(arcade.Window):
 
 
 
-    def _move(self, ant : Ant, coord : tuple[int], dest : tuple[int]) -> tuple[int]:
+    def _moveAnt(self, ant : Ant, coord : tuple[int], dest : tuple[int]) -> tuple[int]:
 
         # Where are we
         start_x = coord[0]

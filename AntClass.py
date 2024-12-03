@@ -1,4 +1,5 @@
 from header import *
+from fimport import *
 
 
 
@@ -7,7 +8,7 @@ class Ant():
     def __init__(self, 
                  id : str = None, 
                  sprite : object = None,
-                 vit_coef : float = 1
+                 coef : float = 1
                  ) -> None:
         """
         init de chaque fourmi
@@ -17,10 +18,10 @@ class Ant():
         type : str
             type de la fourme, "worker"
         """
-        self.life : int = randint(40, 60)
+        self.life : int = randint(30, 45)
         self.lifespan : int = randint(15000, 20000)
-        self.vit : int = 2*vit_coef
-        self.dmg : tuple[int] = (4,8)
+        self.vit : int = 2*coef
+        self.dmg : tuple[int] = randint(4,8)
         self.id : str = id
         self.type : str = type
         self.fight_behave : str = ""

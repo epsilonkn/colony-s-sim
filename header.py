@@ -1,14 +1,9 @@
 #header
-from random import *
-import arcade
-import math
 from AntClass import Ant
 from Main import Task
-from typing import Union
-from  concurrent.futures import *
-from os import *
-import time
 from engineering import *
+from enemy import *
+from fimport import *
 
 
 
@@ -40,6 +35,7 @@ START_SILICIUM = 10
 
 OBJECT_DETECTION = 150
 CORPS_DETECTION = 75
+FIGHT_RANGE = 200
 START_ANT_NB = 20
 CELLAR_CAPACITY = 100
 WAREHOUSE_CAPACITY = 100

@@ -1,4 +1,5 @@
 from header import *
+from fimport import *
 
 DEFENSE_COEF = 1
 STORAGE_COEF = 0.7
@@ -36,7 +37,7 @@ class engineer() :
 
     
     @classmethod
-    def action(engineer, threat_nb : int, population : int, it : int, gen : int, food : int, max_food : int, material : int, max_mat : int):
+    def action(engineer, threat_nb : int, population : int, it : int, gen : int, food : int, max_food : int, material : int, max_mat : int, enemy_might : float = 0, drone_might : float = 1):
         """
         fonction de calcul des coefficients pour la prise de décision dans la construction
 
@@ -53,7 +54,7 @@ class engineer() :
         Returns:
             _type_: _description_
         """
-        threat = 0
+        threat = (threat_nb * enemy_might)/((1 + (it/1000))*drone_might)
         popu = ( (MAX_POPU-population) / (MAX_POPU - MIN_POPU) ) * DRONE_BUILD_COEF
         food = ( food / max_food ) * STORAGE_COEF
         mat = ( material / max_mat ) * STORAGE_COEF
@@ -177,7 +178,7 @@ class upgrade_defense(research):
 
 
 class build_drone():
-    iron = 2
+    iron = 1
     copper = 1
     silicium = 1
     sprite_path =  getcwd() + "\\image\\fourmi_soldat.png"
